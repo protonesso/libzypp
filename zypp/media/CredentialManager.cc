@@ -24,6 +24,9 @@
 
 #define USER_CREDENTIALS_FILE ".zypp/credentials.cat"
 
+#undef ZYPP_BASE_LOGGER_LOGGROUP
+#define ZYPP_BASE_LOGGER_LOGGROUP "zypp::cred"
+
 using namespace std;
 
 //////////////////////////////////////////////////////////////////////
@@ -41,12 +44,8 @@ namespace zypp
 
   bool AuthDataComparator::operator()( const AuthData_Ptr & lhs, const AuthData_Ptr & rhs )
   {
-    static const url::ViewOption vopt = url::ViewOption::DEFAULTS
-				      - url::ViewOption::WITH_USERNAME
-				      - url::ViewOption::WITH_PASSWORD
-				      - url::ViewOption::WITH_QUERY_STR;
     // std::less semantic!
-    int cmp = lhs->url().asString(vopt).compare( rhs->url().asString(vopt) );
+    int cmp = lhs->dumpedUrl().compare( rhs->dumpedUrl() );
     if ( ! cmp )
       cmp = lhs->username().compare( rhs->username() );
     return( cmp < 0 );
@@ -170,45 +169,34 @@ namespace zypp
   }
 
 
-  static AuthData_Ptr findIn(const CredentialManager::CredentialSet & set,
-                             const Url & url,
-                             url::ViewOption vopt)
+  ///////////////////////////////////////////////////////////////////
+  namespace
   {
-    const string & username = url.getUsername();
-    for(CredentialManager::CredentialIterator it = set.begin(); it != set.end(); ++it)
+    AuthData_Ptr findIn( const CredentialManager::CredentialSet & set_r, const Url & url_r )
     {
-      // this ignores url params - not sure if it is good or bad...
-      if (url.asString(vopt).find((*it)->url().asString(vopt)) == 0)
+      const std::string & strippedUrl = AuthData::dumpedUrl( url_r );
+      const string & username = url_r.getUsername();
+
+      for ( const AuthData_Ptr & auth : set_r )
       {
-        if (username.empty() || username == (*it)->username())
-          return *it;
+	if ( str::hasPrefix( strippedUrl, auth->dumpedUrl() )
+	  && ( username.empty() || username == auth->username() ) )
+	    return auth;
       }
+
+      return AuthData_Ptr();
     }
-
-    return AuthData_Ptr();
-  }
-
+  } // namespace
+  ///////////////////////////////////////////////////////////////////
 
   AuthData_Ptr CredentialManager::Impl::getCred(const Url & url) const
   {
-    AuthData_Ptr result;
-
-    // compare the urls via asString(), but ignore password
-    // default url::ViewOption will take care of that.
-    // operator==(Url,Url) compares the whole Url
-
-    url::ViewOption vopt;
-    vopt = vopt
-      - url::ViewOption::WITH_USERNAME
-      - url::ViewOption::WITH_PASSWORD
-      - url::ViewOption::WITH_QUERY_STR;
-
     // search in global credentials
-    result = findIn(_credsGlobal, url, vopt);
+    AuthData_Ptr result = findIn(_credsGlobal, url);
 
     // search in home credentials
     if (!result)
-      result = findIn(_credsUser, url, vopt);
+      result = findIn(_credsUser, url);
 
     if (result)
       DBG << "Found credentials for '" << url << "':" << endl << *result;
