@@ -39,10 +39,21 @@ bool AuthData::valid() const
   return username().size() && password().size();
 }
 
+
+std::string AuthData::dumpedUrl( const Url & url_r )
+{
+  static const url::ViewOption _vopt( url::ViewOption::DEFAULTS
+				    - url::ViewOption::WITH_USERNAME
+				    - url::ViewOption::WITH_PASSWORD
+				    - url::ViewOption::WITH_QUERY_STR
+				    - url::ViewOption::WITH_FRAGMENT );
+  return url_r.asString( _vopt );
+}
+
 std::ostream & AuthData::dumpOn( std::ostream & str ) const
 {
   if (_url.isValid())
-    str << "[" << _url.asString( url::ViewOptions() - url::ViewOptions::WITH_USERNAME - url::ViewOptions::WITH_PASSWORD ) << "]" << endl;
+    str << "[" << dumpedUrl() << "]" << endl;
   else
     str << "[<no-url>]" << endl;
   str << "username: '" << _username << "'" << std::endl
@@ -54,11 +65,7 @@ std::ostream & AuthData::dumpAsIniOn( std::ostream & str ) const
 {
   if (_url.isValid())
     str
-      << "[" << _url.asString(
-        url::ViewOptions()
-        - url::ViewOptions::WITH_USERNAME
-        - url::ViewOptions::WITH_PASSWORD)
-      << "]" << endl;
+      << "[" << dumpedUrl() << "]" << endl;
 
   str
     << "username = " << _username << endl

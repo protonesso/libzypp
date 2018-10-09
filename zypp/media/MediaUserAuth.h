@@ -56,9 +56,25 @@ public:
   std::string username() const { return _username; }
   std::string password() const { return _password; }
 
+  /** \name Dumping AuthData to a stream.
+   *
+   * Userdata, query and fragment are stripped from the \ref url when
+   * dumping it to the stream (\see \ref url::ViewOption).
+   *
+   * To process an arbitary \ref Url in the same way use \ref dumpedUrl.
+   * This is e.g. what the \ref CredentialManager does to find matches.
+   */
+  //@{
+  /** The dumped string for \a url_r (without userdata, query and fragment)</tt>).*/
+  static std::string dumpedUrl( const Url & url_r );
+
+  /** The dumped string for \ref url.*/
+  std::string dumpedUrl() const { return dumpedUrl( _url ); }
+
   virtual std::ostream & dumpOn( std::ostream & str ) const;
 
   virtual std::ostream & dumpAsIniOn( std::ostream & str ) const;
+  //@}
 
 private:
   Url _url;
