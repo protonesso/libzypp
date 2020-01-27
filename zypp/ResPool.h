@@ -297,9 +297,17 @@ namespace zypp
       //@}
 
     public:
-      /** \name Special iterators. */
+      /** \name Misc Data. */
       //@{
-
+      /** Map holding pseudo installed items where current status and initial ValidateValue differ. */
+      typedef std::map<PoolItem,ResStatus::ValidateValue> ChangedPseudoInstalled;
+      /** Return all pseudo installed items whose current state differs from their initial one.
+       * E.g. a Patch may become SATISFIED by updating the packages it refers to.
+       * For this to happen it does not matter whether you selected the Patch or
+       * whether you selected the individual Packages.
+       * A Patches status is computed and updated with every solver run.
+       */
+      ChangedPseudoInstalled changedPseudoInstalled() const;
       //@}
    public:
       /** \name Iterate over all Repositories that contribute ResObjects.

@@ -70,6 +70,8 @@ namespace zypp
   PoolItem ResPool::find( const sat::Solvable & slv_r ) const
   { return _pimpl->find( slv_r ); }
 
+  ResPool::ChangedPseudoInstalled ResPool::changedPseudoInstalled() const
+  { return _pimpl->changedPseudoInstalled(); }
 
   ResPool::size_type ResPool::knownRepositoriesSize() const
   { return _pimpl->knownRepositoriesSize(); }

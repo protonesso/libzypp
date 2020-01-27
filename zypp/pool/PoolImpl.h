@@ -32,6 +32,12 @@ using std::endl;
 namespace zypp
 { /////////////////////////////////////////////////////////////////
 
+  namespace solver {
+    namespace detail {
+      void establish( sat::Queue & pseudoItems_r, sat::Queue & pseudoFlags_r );	// in solver/detail/SATResolver.cc
+    }
+  }
+
   namespace resstatus
   {
     /** Manipulator for \ref ResStatus::UserLockQueryField.
@@ -107,6 +113,27 @@ namespace zypp
   ///////////////////////////////////////////////////////////////////
   namespace pool
   { /////////////////////////////////////////////////////////////////
+
+    ///////////////////////////////////////////////////////////////////
+    /// \class PseudoItems
+    /// \brief Helper to store initial status of pseudo installed items.
+    ///
+    struct PseudoItems
+    {
+      void reset()
+      {
+	_pseudoItems.clear();
+	_pseudoFlags.clear();
+      }
+
+      ResStatus::ValidateValue validateValue( sat::Queue::size_type i ) const
+      {
+	return ResStatus::UNDETERMINED;
+      }
+
+      sat::Queue _pseudoItems;
+      sat::Queue _pseudoFlags;
+    };
 
     ///////////////////////////////////////////////////////////////////
     //
@@ -198,7 +225,58 @@ namespace zypp
           return *_poolProxy;
         }
 
-      public:
+      private:
+	///////////////////////////////////////////////////////////////////
+	/// \class PseudoItems
+	/// \brief Helper to store initial status of pseudo installed items.
+	///
+	struct PseudoItems
+	{
+	  void reset()
+	  {
+	    _pseudoItems.clear();
+	    _pseudoFlags.clear();
+	  }
+
+	  ResStatus::ValidateValue validateValue( sat::Queue::size_type i ) const
+	  {
+	    ResStatus::ValidateValue ret { ResStatus::UNDETERMINED };
+	    switch ( _pseudoFlags[i] )
+	    {
+	      case 0:  ret = ResStatus::BROKEN; break;
+	      case 1:  ret = ResStatus::SATISFIED; break;
+	      case -1: ret = ResStatus::NONRELEVANT; break;
+	    }
+	    return ret;
+	  }
+
+	  sat::Queue _pseudoItems;
+	  sat::Queue _pseudoFlags;
+	};
+
+	const PseudoItems & pseudoItems() const
+	{ store(); return _pseudoItems; }
+
+    public:
+        ResPool::ChangedPseudoInstalled changedPseudoInstalled() const
+        {
+	  ResPool::ChangedPseudoInstalled ret;
+
+	  const PseudoItems & initial { pseudoItems() };
+	  if ( ! initial._pseudoItems.empty() )
+	  {
+	    for ( sat::Queue::size_type i = 0; i < initial._pseudoItems.size(); ++i )
+	    {
+	      const PoolItem & pi { sat::Solvable(initial._pseudoItems[i]) };
+	      ResStatus::ValidateValue vorig { initial.validateValue( i ) };
+	      if ( pi.status().validate() != vorig )
+		ret[pi] = vorig;
+	    }
+	  }
+	  return ret;
+	}
+
+    public:
         /** Forward list of Repositories that contribute ResObjects from \ref sat::Pool */
         size_type knownRepositoriesSize() const
         { checkSerial(); return satpool().reposSize(); }
@@ -352,6 +430,9 @@ namespace zypp
             {
               reapplyHardLocks();
             }
+
+	    // Compute the initial status of Patches etc.
+	    solver::detail::establish( _pseudoItems._pseudoItems, _pseudoItems._pseudoFlags );
           }
           return _store;
         }
@@ -394,6 +475,7 @@ namespace zypp
 	  _id2itemDirty = true;
 	  _id2item.clear();
           _poolProxy.reset();
+	  _pseudoItems.reset();
         }
 
       private:
@@ -408,6 +490,7 @@ namespace zypp
 
       private:
         mutable shared_ptr<ResPoolProxy>      _poolProxy;
+	mutable PseudoItems		      _pseudoItems;
 
       private:
         /** Set of queries that define hardlocks. */
