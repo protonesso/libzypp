@@ -1689,6 +1689,14 @@ namespace zypp
 
       } // for
 
+      // jsc#SLE-5116: Log patch status changes to history
+      {
+	// TODO: Need to somehow adjust the patch list if commit is incomplete.
+	HistoryLog historylog;
+	for ( const auto & el : ResPool::instance().changedPseudoInstalled() )
+	  historylog.patchStateChange( el.first, el.second );
+      }
+
       // process all remembered posttrans scripts. If aborting,
       // at least log omitted scripts.
       if ( abort || (abort = !postTransCollector.executeScripts()) )
