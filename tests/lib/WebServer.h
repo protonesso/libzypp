@@ -6,6 +6,7 @@
 #include "zypp/Pathname.h"
 #include "zypp/base/PtrTypes.h"
 #include "zypp/media/TransferSettings.h"
+#include "zypp/TriBool.h"
 
 #include <functional>
 
@@ -57,8 +58,10 @@ class WebServer
   ~WebServer();
   /**
    * Starts the webserver worker thread
+   * Waits up to 10 seconds and returns whether the port is now active.
    */
-  void start();
+  zypp::TriBool start();
+
   /**
    * Stops the worker thread
    */

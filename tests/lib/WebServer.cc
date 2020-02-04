@@ -4,6 +4,14 @@
 #include <poll.h>
 #include <signal.h>
 
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+
 #include "zypp/base/Logger.h"
 #include "zypp/base/String.h"
 #include "zypp/base/Exception.h"
@@ -47,6 +55,40 @@ namespace  {
     }
 
   };
+
+  TriBool checkLocalPort( int portno_r )
+  {
+    TriBool ret { indeterminate };
+
+    int sockfd = socket( AF_INET, SOCK_STREAM, 0 );
+    if ( sockfd < 0 ) {
+        ERR << "ERROR opening socket" << endl;
+	return ret;
+    }
+
+    struct hostent * server = gethostbyname( "127.0.0.1" );
+    if ( server == nullptr ) {
+        ERR << "ERROR, no such host 127.0.0.1" << endl;
+        return ret;
+    }
+
+    struct sockaddr_in serv_addr;
+    bzero( &serv_addr, sizeof(serv_addr) );
+    serv_addr.sin_family = AF_INET;
+    bcopy( server->h_addr, &serv_addr.sin_addr.s_addr, server->h_length );
+    serv_addr.sin_port = htons(portno_r);
+
+    if ( connect( sockfd, (const sockaddr*)&serv_addr, sizeof(serv_addr) ) < 0 ) {
+      DBG << "Port is closed" << endl;
+      ret = false;
+    } else {
+      DBG << "Port is active" << endl;
+      ret = true;
+    }
+
+    close( sockfd );
+    return ret;
+  }
 }
 
 static inline string hostname()
@@ -418,9 +460,20 @@ WebServer::WebServer(const Pathname &root, unsigned int port, bool useSSL)
 {
 }
 
-void WebServer::start()
+TriBool WebServer::start()
 {
     _pimpl->start();
+
+    TriBool ret { checkLocalPort( _pimpl->port() ) };
+    if ( ret != true )
+    {
+      unsigned i = 0;
+      do {
+	sleep( 1 );
+	ret = checkLocalPort( _pimpl->port() );
+      } while ( ret != true || ++i == 10 );
+    }
+    return ret;
 }
 
 
