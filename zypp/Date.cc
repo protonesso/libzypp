@@ -10,6 +10,8 @@
  *
 */
 #include <iostream>
+#include <iomanip>
+#include <ctime>
 //#include "zypp/base/Logger.h"
 
 #include "zypp/base/String.h"
