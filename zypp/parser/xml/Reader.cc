@@ -13,6 +13,7 @@
 #include <libxml/xmlerror.h>
 
 #include <iostream>
+#include <sys/stat.h>
 
 #include "zypp/base/LogControl.h"
 #include "zypp/base/LogTools.h"
