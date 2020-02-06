@@ -10,6 +10,7 @@
  *
 */
 #include <iostream>
+#include <sys/stat.h>
 #include "zypp/base/LogTools.h"
 
 #include "zypp/base/InputStream.h"
