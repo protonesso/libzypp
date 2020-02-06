@@ -13,7 +13,7 @@ extern "C"
 {
 #include <features.h>
 #include <sys/utsname.h>
-#if __GLIBC_PREREQ (2,16)
+#ifdef __GLIBC__
 #include <sys/auxv.h>	// getauxval for PPC64P7 detection
 #endif
 #include <unistd.h>
@@ -155,7 +155,7 @@ namespace zypp
 	  }
 	}
       }
-#if __GLIBC_PREREQ (2,16)
+#ifdef __GLIBC__
       else if ( architecture == Arch_ppc64 )
       {
 	const char * platform = (const char *)getauxval( AT_PLATFORM );
