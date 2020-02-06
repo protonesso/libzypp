@@ -13,6 +13,7 @@
 #include <fstream>
 #include <sstream>
 #include <streambuf>
+#include <sys/stat.h>
 
 #define ZYPP_USE_RESOLVER_INTERNALS
 
