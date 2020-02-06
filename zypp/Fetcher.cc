@@ -13,6 +13,7 @@
 #include <fstream>
 #include <list>
 #include <map>
+#include <sys/stat.h>
 
 #include "zypp/base/Easy.h"
 #include "zypp/base/LogControl.h"
