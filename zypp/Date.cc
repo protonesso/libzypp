@@ -18,6 +18,17 @@
 
 #include "zypp/Date.h"
 
+// OpenBSD
+static struct tm	tm;
+
+time_t
+timelocal(struct tm *tmp)
+{
+	if (tmp != NULL)
+		tmp->tm_isdst = -1;	/* in case it wasn't initialized */
+	return mktime(tmp);
+}
+
 using std::endl;
 
 ///////////////////////////////////////////////////////////////////
