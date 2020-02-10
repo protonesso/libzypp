@@ -4,6 +4,14 @@
 #include <poll.h>
 #include <signal.h>
 
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+
 #include "zypp/base/Logger.h"
 #include "zypp/base/String.h"
 #include "zypp/base/Exception.h"
@@ -47,7 +55,34 @@ namespace  {
     }
 
   };
+
+  bool checkLocalPort( int portno_r )
+  {
+    bool ret = false;
+
+    AutoDispose<int> sockfd { socket( AF_INET, SOCK_STREAM, 0 ) };
+    if ( sockfd < 0 ) {
+        std::cerr << "ERROR opening socket" << endl;
+	return ret;
+    }
+    sockfd.setDispose( ::close );
+
+    struct hostent * server = gethostbyname( "127.0.0.1" );
+    if ( server == nullptr ) {
+        std::cerr << "ERROR, no such host 127.0.0.1" << endl;
+        return ret;
+    }
+
+    struct sockaddr_in serv_addr;
+    bzero( &serv_addr, sizeof(serv_addr) );
+    serv_addr.sin_family = AF_INET;
+    bcopy( server->h_addr, &serv_addr.sin_addr.s_addr, server->h_length );
+    serv_addr.sin_port = htons(portno_r);
+
+    return( connect( sockfd, (const sockaddr*)&serv_addr, sizeof(serv_addr) ) == 0 );
+  }
 }
+
 
 static inline string hostname()
 {
@@ -117,7 +152,7 @@ public:
 
     void worker_thread()
     {
-      int sockFD = -1;
+      AutoDispose<int> sockFD( -1, ::close );
 
       ExternalProgram::Environment env;
 
@@ -131,7 +166,7 @@ public:
 
       {
         std::lock_guard<std::mutex> lock ( _mut );
-        sockFD = FCGX_OpenSocket( socketPath().c_str(), 128 );
+        sockFD.value() = FCGX_OpenSocket( socketPath().c_str(), 128 );
         env["ZYPP_TEST_SRVROOT"] = _workingDir.path().c_str();
         env["ZYPP_TEST_PORT"] = str::numstring( _port );
         env["ZYPP_TEST_DOCROOT"] = _docroot.c_str();
@@ -171,6 +206,7 @@ public:
         bool canContinue = ( zypp::filesystem::symlink( Pathname(TESTS_SRC_DIR)/"data"/"nginxconf"/"nginx.conf",  confFile ) == 0 );
         if ( canContinue ) canContinue = writeConfFile( confPath / "srvroot.conf", str::Format("root    %1%;") % _docroot );
         if ( canContinue ) canContinue = writeConfFile( confPath / "fcgisock.conf", str::Format("fastcgi_pass unix:%1%;") % socketPath().c_str() );
+	if ( canContinue ) canContinue = writeConfFile( confPath / "user.conf", getuid() != 0 ? "" : "user root;" );
         if ( canContinue ) {
           if ( _ssl )
             canContinue = writeConfFile( confPath / "port.conf", str::Format("listen    %1% ssl;") % _port );
@@ -188,7 +224,7 @@ public:
         if ( canContinue && _ssl ) canContinue = zypp::filesystem::symlink( Pathname(TESTS_SRC_DIR)/"data"/"webconf"/"ssl"/"server.key",  confPath/"cert.key") == 0;
 
         if ( canContinue )
-          sockFD = FCGX_OpenSocket( socketPath().c_str(), 128 );
+          sockFD.value() = FCGX_OpenSocket( socketPath().c_str(), 128 );
       }
 
       const char* argv[] =
@@ -209,9 +245,6 @@ public:
         ExternalTrackedProgram prog( argv, env, ExternalProgram::Stderr_To_Stdout, false, -1, true);
         prog.setBlocking( false );
 
-        //wait some time so we can read config
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
         while(1) {
           std::string line = prog.receiveLine();
           if ( line.empty() )
@@ -220,6 +253,22 @@ public:
             continue;
           std::cerr << line << endl;
         };
+
+	// Wait max 10 sec for the socket becoming available
+	bool isup { checkLocalPort( port() ) };
+	if ( !isup )
+	{
+	  unsigned i = 0;
+	  do {
+	    std::this_thread::sleep_for( std::chrono::milliseconds(1000) );
+	    isup = checkLocalPort( port() );
+	  } while ( !isup && ++i < 10 );
+
+	  if ( !isup && prog.running() ) {
+	    prog.kill( SIGTERM );
+            prog.close();
+	  }
+	}
 
         if ( !prog.running() ) {
           _stop = true;
@@ -230,6 +279,7 @@ public:
 
         FCGX_Request request;
         FCGX_InitRequest(&request, sockFD,0);
+	AutoDispose<FCGX_Request*> guard( &request, boost::bind( &FCGX_Free, _1, 0 ) );
 
         struct pollfd fds[] { {
             _wakeupPipe[0],
@@ -417,9 +467,10 @@ WebServer::WebServer(const Pathname &root, unsigned int port, bool useSSL)
 {
 }
 
-void WebServer::start()
+bool WebServer::start()
 {
     _pimpl->start();
+    return !isStopped();
 }
 
 

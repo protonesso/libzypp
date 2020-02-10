@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <iostream>
-#include <boost/test/auto_unit_test.hpp>
+#include <boost/test/unit_test.hpp>
 #include <boost/test/parameterized_test.hpp>
 #include <boost/test/unit_test_log.hpp>
 
@@ -248,7 +248,7 @@ BOOST_AUTO_TEST_CASE(msa_file_exist_local)
 BOOST_AUTO_TEST_CASE(msa_remote_tests)
 {
   WebServer web( DATADIR / "/src1/cd1", 10002 );
-  web.start();
+  BOOST_REQUIRE( web.start() );
   MediaSetAccess setaccess( web.url(), "/" );
 
   BOOST_CHECK(!setaccess.doesFileExist("/testBADNAME.txt"));
